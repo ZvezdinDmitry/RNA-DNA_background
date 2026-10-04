@@ -5,6 +5,27 @@ from pathlib import Path
 
 @dataclass
 class FeaturesConfig:
+    """Configuration for genomic features used in model training.
+
+    Populates attributes from the .ini file in `__post_init__`. Train/val/test
+    chromosome splits are hardcoded for mouse chromosomes (even indices → train,
+    odd indices → test, with chr2/8/14/18 held out as validation).
+
+    Attributes:
+        config_file_path: Path to the .ini configuration file.
+        chromosomes: List of chromosome names.
+        window_size: Size of the sliding window (in bins).
+        shift: Shift (stride) of the sliding window in bins.
+        perc_mask: Percentile threshold used to mask low-signal bins.
+        num_features: List of names of continuous (numerical) features.
+        cat_features: List of names of categorical features.
+        features_group: Feature group name (e.g. 'all', 'sequence', 'epigenome').
+        train_chromosomes: Chromosomes used for training.
+        val_chromosomes: Chromosomes used for validation.
+        test_chromosomes: Chromosomes used for testing.
+        mask_zeros: Whether to exclude zero-contact bins from training.
+    """
+
     config_file_path: str | Path = field(repr=False)
     chromosomes: list[str] = field(repr=False)
     window_size: int = field(init=False)
@@ -58,6 +79,24 @@ class FeaturesConfig:
 
 @dataclass
 class MLPConfig:
+    """Configuration for a simple MLP model.
+
+    Hyperparameters are read from the section named `model_name` of the .ini file
+    in `__post_init__`.
+
+    Attributes:
+        config_file_path: Path to the .ini configuration file.
+        model_name: Name of the section in the .ini file with hyperparameters.
+        batch_size: Training batch size.
+        hidden: Number of hidden units per layer.
+        lr: Learning rate.
+        weight_decay: L2 regularization coefficient.
+        num_epochs: Number of training epochs.
+        scheduler: Learning-rate scheduler name.
+        div_factor: Divisor for the one-cycle scheduler's initial LR.
+        activation_func: Name of the activation function.
+    """
+
     config_file_path: str | Path = field(repr=False)
     model_name: str
     batch_size: int = field(init=False)
@@ -85,6 +124,23 @@ class MLPConfig:
 
 @dataclass
 class UnetConfig:
+    """Configuration for a 1D U-Net convolutional model.
+
+    Hyperparameters are read from the section named `model_name` of the .ini file
+    in `__post_init__`.
+
+    Attributes:
+        config_file_path: Path to the .ini configuration file.
+        model_name: Name of the section in the .ini file with hyperparameters.
+        lr: Learning rate.
+        weight_decay: L2 regularization coefficient.
+        num_epochs: Number of training epochs.
+        num_conv_layers: Number of convolutional layers in each U-Net block.
+        kernel_size: Kernel size of convolutions.
+        channels: List of channel counts for successive U-Net blocks.
+        dilations: Dilation factor for dilated convolutions.
+    """
+
     config_file_path: str | Path = field(repr=False)
     model_name: str
     lr: float = field(init=False)

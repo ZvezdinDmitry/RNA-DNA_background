@@ -16,6 +16,17 @@ def plot_correlation(
     ylabel: str = "Predictions",
     margin_label: str = "Probability",
 ):
+    """Plots a 2D histogram of predictions vs targets with marginal distributions and reports SCC/PCC.
+
+    Args:
+        preds (np.ndarray): 1D array of model predictions.
+        y_val (np.ndarray): 1D array of target values (same length as `preds`).
+        bins (int): Number of bins along each axis for the 2D histogram. Defaults to 46.
+        path (None | Path | str): Path to save the figure. If `None`, the plot is only displayed.
+        xlabel (str): Label for the x-axis (target values). Defaults to 'Target'.
+        ylabel (str): Label for the y-axis (predictions). Defaults to 'Predictions'.
+        margin_label (str): Label for the marginal distribution axes. Defaults to 'Probability'.
+    """
     scc = ss.spearmanr(preds, y_val)
     pcc = ss.pearsonr(preds, y_val)
 
@@ -70,6 +81,20 @@ def draw_interval(
     ylabel_bottom: str = "Predictions",
     xlabel: str = "Chromosome {}, positions in {} Kb",
 ):
+    """Visualizes target and predicted contact profiles as paired bar plots over a genomic interval.
+
+    Args:
+        selected_preds (pd.Series | np.ndarray): Predicted contact counts for the selected region.
+        selected_contacts (pd.Series | np.ndarray): Observed (target) contact counts for the same region.
+        start (int): Genomic start coordinate of the interval (in bp).
+        chrom (str): Chromosome name (used in the x-axis label).
+        bin_size (int): Size of each genomic bin in bp. Defaults to 1000.
+        window_size (int): Total length of the plotted interval in bp. Defaults to 256000.
+        path (None | str | Path): Path to save the figure. If `None`, the plot is only displayed.
+        ylabel_top (str): Y-axis label for the top panel (target). Defaults to 'Target'.
+        ylabel_bottom (str): Y-axis label for the bottom panel (predictions). Defaults to 'Predictions'.
+        xlabel (str): X-axis label template with two placeholders: chromosome name and bin size in Kb.
+    """
     scc = ss.spearmanr(selected_preds, selected_contacts)
     pcc = ss.pearsonr(selected_preds, selected_contacts)
     fig, axs = plt.subplots(2, 1, figsize=(15, 5), sharex=True)

@@ -3,6 +3,14 @@ from torch import nn
 
 
 class MLPNoiseModel(nn.Module):
+    """Simple two-layer MLP for point-wise (per-bin) background contact prediction.
+
+    Args:
+        n_features (int): Number of input features per bin.
+        activation: Activation class (e.g. nn.ReLU), instantiated internally.
+        hidden (int): Number of hidden units. Defaults to 128.
+    """
+
     def __init__(self, n_features, activation, hidden=128) -> None:
         super().__init__()
         self.mlp = nn.Sequential(
@@ -16,6 +24,18 @@ class MLPNoiseModel(nn.Module):
 
 
 class UnetBlock(nn.Module):
+    """Basic 1D convolutional block: two convolutions with BatchNorm and activation.
+
+    The second convolution uses dilated kernels to enlarge the receptive field.
+
+    Args:
+        kernel_size (int): Convolution kernel size.
+        in_ch (int): Number of input channels.
+        out_ch (int): Number of output channels.
+        activation: Activation class, instantiated internally.
+        dilation (int): Dilation factor of the second convolution.
+    """
+
     def __init__(
         self, kernel_size, in_ch, out_ch, activation, dilation
     ) -> None:
@@ -36,6 +56,18 @@ class UnetBlock(nn.Module):
 
 
 class UnetEncoder(nn.Module):
+    """U-Net encoder: three convolutional blocks with average pooling between them.
+
+    Feature maps from each level are collected and returned as skip connections.
+
+    Args:
+        kernel_size (int): Convolution kernel size.
+        features_n (int): Number of input feature channels.
+        channels (list[int]): Channel counts for the three blocks.
+        activation: Activation class.
+        dilation (int): Dilation factor.
+    """
+
     def __init__(
         self, kernel_size, features_n, channels, activation, dilation
     ) -> None:
@@ -63,6 +95,16 @@ class UnetEncoder(nn.Module):
 
 
 class UnetDecoder(nn.Module):
+    """U-Net decoder: progressive upsampling with skip connections from the encoder.
+
+    Args:
+        kernel_size (int): Convolution kernel size.
+        channels (list[int]): Channel counts (reversed internally to match
+            the encoder order).
+        activation: Activation class.
+        dilation (int): Dilation factor.
+    """
+
     def __init__(self, kernel_size, channels, activation, dilation) -> None:
         super().__init__()
         channels = channels[::-1]
@@ -94,6 +136,19 @@ class UnetDecoder(nn.Module):
 
 
 class UnetNoiseModel(nn.Module):
+    """1D U-Net for background contact profile prediction.
+
+    Takes a feature track of shape (batch, features_n, window_bins) and predicts
+    a contact profile of shape (batch, window_bins).
+
+    Args:
+        kernel_size (int): Convolution kernel size.
+        features_n (int): Number of input feature channels.
+        channels (list[int]): Channel counts for encoder/decoder blocks.
+        activation: Activation class.
+        dilation (int): Dilation factor.
+    """
+
     def __init__(
         self, kernel_size, features_n, channels, activation, dilation
     ) -> None:

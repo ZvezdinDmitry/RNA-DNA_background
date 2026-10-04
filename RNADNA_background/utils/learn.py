@@ -81,6 +81,27 @@ def rolling_mean(
     features_params: FeaturesConfig,
     win_type: str | None = None,
 ) -> pd.DataFrame:
+    """Computes sliding-window mean for each feature within genomic windows.
+
+    Used to add context-aggregated features (domain-level signals) to the tabular
+    feature set. For each window, the rolling mean is computed across bins belonging
+    to that window; edge bins are filled via backfill/forwardfill.
+
+    Args:
+        windows (pd.DataFrame): DataFrame with columns `chrom`, `start`, `end`
+            defining genomic intervals for which context features are needed.
+        features (pd.DataFrame): DataFrame of per-bin features with columns
+            `chrom`, `start`, `end`, `bin`, and feature columns.
+        win_size (int): Window size (in bins) for the rolling mean.
+        features_params (FeaturesConfig): Config with feature column names
+            (`num_features`, `cat_features`).
+        win_type (str | None): Window type passed to `pandas.DataFrame.rolling`
+            (e.g. 'triang', 'gaussian'). None means uniform weights.
+
+    Returns:
+        pd.DataFrame: Features DataFrame with additional columns prefixed `mean_`,
+        sorted by `chrom` and `bin`.
+    """
     features_with_means = []
     for i, (chrom, start, end) in tqdm(windows.iterrows()):
         selected_features = features.loc[
@@ -128,9 +149,24 @@ def train_epoch(
     criterion,
     device,
     optimizer,
-    sheduler=None,
+    scheduler=None,
     mask_zeros=False,
 ):
+    """Runs one training epoch for a tabular model.
+
+    Args:
+        model: PyTorch model.
+        loader: DataLoader yielding (features, contacts) batches (or
+            (features, contacts, mask) when `mask_zeros=True`).
+        criterion: Element-wise (non-reduced) loss function.
+        device: Torch device to move batches to.
+        optimizer: Torch optimizer.
+        scheduler: Optional LR scheduler stepped once per batch.
+        mask_zeros (bool): If True, zero out loss at bins with zero target contacts.
+
+    Returns:
+        float: Mean loss over the epoch.
+    """
     model.train()
     epoch_loss = 0
     batch_num = len(loader)
@@ -148,14 +184,28 @@ def train_epoch(
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        if sheduler:
-            sheduler.step()
+        if scheduler:
+            scheduler.step()
         epoch_loss += loss.item()
 
     return epoch_loss / batch_num
 
 
 def eval_epoch(model, loader, criterion, device, mask_zeros=False):
+    """Runs one evaluation epoch for a tabular (point-wise) model.
+
+    Args:
+        model: PyTorch model.
+        loader: DataLoader yielding batches.
+        criterion: Element-wise loss function.
+        device: Torch device.
+        mask_zeros (bool): If True, zero out loss at zero-target bins.
+
+    Returns:
+        tuple: (mean_loss, spearman_result, predictions_flat, targets_flat,
+            per_batch_losses), where `spearman_result` is the scipy.stats.spearmanr
+            output computed over all predictions and targets concatenated across batches.
+    """
     model.eval()
     epoch_loss = 0
     batch_num = len(loader)
@@ -200,9 +250,28 @@ def train_epoch_unet(
     criterion,
     device,
     optimizer,
-    sheduler=None,
+    scheduler=None,
     mask_zeros=False,
 ):
+    """Runs one training epoch for a 1D U-Net profile-prediction model.
+
+    Interface is identical to `train_epoch`, but intended for sequence-to-sequence
+    models that take a 1D feature track as input and return a profile of predicted
+    contacts across bins of a genomic window.
+
+    Args:
+        model: 1D U-Net PyTorch model.
+        loader: DataLoader yielding (features, contacts) or
+            (features, contacts, mask) batches.
+        criterion: Element-wise loss function.
+        device: Torch device.
+        optimizer: Torch optimizer.
+        sheduler: Optional LR scheduler stepped once per batch.
+        mask_zeros (bool): If True, zero out loss at bins with zero target contacts.
+
+    Returns:
+        float: Mean loss over the epoch.
+    """
     model.train()
     epoch_loss = 0
     batch_num = len(loader)
@@ -220,14 +289,31 @@ def train_epoch_unet(
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        if sheduler:
-            sheduler.step()
+        if scheduler:
+            scheduler.step()
         epoch_loss += loss.item()
 
     return epoch_loss / batch_num
 
 
 def eval_epoch_unet(model, loader, criterion, device, mask_zeros=False):
+    """Runs one evaluation epoch for a 1D U-Net profile-prediction model.
+
+    In addition to the global SCC (over all bins concatenated across batches),
+    computes per-window SCC (within each sequence in the batch) and returns its
+    mean as a profile-level quality metric.
+
+    Args:
+        model: 1D U-Net PyTorch model.
+        loader: DataLoader yielding batches.
+        criterion: Element-wise loss function.
+        device: Torch device.
+        mask_zeros (bool): If True, zero out loss at zero-target bins.
+
+    Returns:
+        tuple: (mean_loss, global_spearman_result, predictions_flat, targets_flat,
+            per_batch_losses, mean_per_window_scc).
+    """
     model.eval()
     epoch_loss = 0
     batch_num = len(loader)
@@ -274,6 +360,36 @@ def eval_epoch_unet(model, loader, criterion, device, mask_zeros=False):
 
 
 class TabularDataset(Dataset):
+    """PyTorch Dataset for point-wise (per-bin) RNA-DNA contact prediction.
+
+    Merges genomic windows with per-bin features and target contact counts, optionally
+    adds rolling-mean context features, optionally filters out zero-contact bins, and
+    standardizes numerical features using a StandardScaler (fit on this dataset if
+    `scaler` is None).
+
+    Args:
+        windows (pd.DataFrame): Genomic intervals with columns `chr`, `start`, `end`.
+        features (pd.DataFrame): Per-bin features with columns `chrom`, `bin`,
+            `start`, `end`, and feature columns.
+        contacts (pd.DataFrame): Per-bin target contact counts with columns
+            `dna_chr`, `bin`, `count`.
+        features_params (FeaturesConfig): Config listing numerical and categorical features.
+        mean_features (bool): Whether to add rolling-mean context features.
+        win_size (int | None): Window size (in bins) for the rolling mean
+            (used if `mean_features=True`).
+        win_type (str | None): Window type for the rolling mean.
+        mask_zeros (bool): If True, exclude zero-contact bins from the dataset.
+        scaler (None | StandardScaler): Pre-fit scaler for numerical features.
+            If None, a new StandardScaler is fit on this dataset.
+
+    Attributes:
+        features (pd.DataFrame): Final per-bin feature table.
+        contacts (pd.DataFrame): Final target table.
+        y (np.ndarray): Target contact counts as a 1D array.
+        scaled_features (np.ndarray): Standardized feature matrix returned via __getitem__.
+        scaler (StandardScaler): The fitted scaler.
+    """
+
     def __init__(
         self,
         windows: pd.DataFrame,
@@ -355,6 +471,30 @@ class TabularDataset(Dataset):
 
 
 class NoiseDatasetTracks(Dataset):
+    """PyTorch Dataset for sequence-to-sequence (profile) prediction with 1D U-Net.
+
+    Each item is a genomic window; `__getitem__` returns the window's feature tracks
+    and target contact profile as tensors of shape (n_features, n_bins) and (n_bins,).
+    Numerical features are standardized using pre-computed per-feature `mean` and `std`.
+
+    For test/validation, duplicate overlapping windows are removed to avoid evaluating
+    the same genomic region multiple times.
+
+    Args:
+        windows (pd.DataFrame): Genomic intervals with columns `chr`, `start`, `end`.
+        binned_features (dict[str, pd.DataFrame]): Per-chromosome tables of binned
+            features (rows ordered by bin index).
+        binned_contacts (dict[str, pd.DataFrame]): Per-chromosome tables of binned
+            target contact counts.
+        num_features (list[str]): Names of numerical features to be standardized.
+        mean (pd.Series): Per-feature mean for standardization.
+        std (pd.Series): Per-feature std for standardization.
+        bin_size (int): Genomic bin size in bp.
+        mask_zeros (bool): If True, `__getitem__` returns a 3-tuple
+            (features, contacts, mask) where mask flags bins with positive contacts.
+        test (bool): If True, deduplicate overlapping windows (used for test/val splits).
+    """
+
     def __init__(
         self,
         windows: pd.DataFrame,

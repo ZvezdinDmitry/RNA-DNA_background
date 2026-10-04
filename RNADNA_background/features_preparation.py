@@ -13,13 +13,16 @@ def restriction_site_count(
     restriction_site: str,
     params: DataConfig,
 ) -> pd.DataFrame:
-    """Counts restriction sites number in DNA parts of given fragment.
+    """Counts occurrences of a restriction site motif within each DNA bin.
 
     Args:
-
+        features (pd.DataFrame): DataFrame with columns `dna_chr` and `bin` identifying genomic bins.
+        genome (dict): Mapping from chromosome name to BioPython SeqRecord (full chromosome sequences).
+        restriction_site (str): Restriction motif to search for.
+        params (DataConfig): Configuration object holding `bin_size`.
 
     Returns:
-        pd.DataFrame: features DF with restriction_sites column.
+        pd.DataFrame: Input DataFrame with an added `restriction_sites` column.
     """
     features["restriction_sites"] = 0
     for i, row in tqdm(features.iterrows()):
@@ -36,12 +39,15 @@ def restriction_site_count(
 def GC_content_count(
     features: pd.DataFrame, genome: dict, params: DataConfig
 ) -> pd.DataFrame:
-    """Calculates GC content.
+    """Counts G and C nucleotides within each DNA bin.
 
     Args:
+        features (pd.DataFrame): DataFrame with columns `dna_chr` and `bin` identifying genomic bins.
+        genome (dict): Mapping from chromosome name to BioPython SeqRecord (full chromosome sequences).
+        params (DataConfig): Configuration object holding `bin_size`.
 
     Returns:
-        pd.DataFrame: features DF with gc_count column.
+        pd.DataFrame: Input DataFrame with an added `gc_count` column (absolute count of G+C bases).
     """
     features["gc_count"] = 0
     for i, row in tqdm(features.iterrows()):
@@ -60,17 +66,22 @@ def interactions_bining(
     params: DataConfig,
     bin_columns: list[str] = ["dna_chr", "bin"],
 ) -> pd.DataFrame:
-    """_summary_
+    """Aggregates RNA-DNA contacts into genomic bins based on DNA fragment coordinates.
 
     Args:
-        contacts (pd.DataFrame): _description_
-        params (EdaParams): _description_
+        contacts (pd.DataFrame): DataFrame of raw RNA-DNA contacts with columns
+            `dna_chr`, `dna_start`, `dna_end`.
+        params (DataConfig): Configuration object holding `bin_size`.
+        bin_columns (list[str]): Columns to group by when counting contacts per bin.
+            Defaults to ['dna_chr', 'bin'].
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: Aggregated DataFrame with one row per bin and a `count` column
+            indicating the number of contacts falling into that bin.
     """
+    bin_col = bin_columns[-1]
     contacts["center"] = (contacts["dna_start"] + contacts["dna_end"]) // 2
-    contacts["bin"] = contacts["center"] // params.bin_size
+    contacts[bin_col] = contacts["center"] // params.bin_size
 
     contacts_binned = (
         contacts[bin_columns]

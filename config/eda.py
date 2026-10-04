@@ -5,8 +5,27 @@ from pathlib import Path
 
 @dataclass
 class DataConfig:
+    """Configuration for experimental data: cell line, organism, genome, and file paths.
+
+    Populates most attributes from an .ini file (passed via `config_file_path`)
+    in `__post_init__`. Supported cell lines: mESC, mOPC (mouse); hESC, K562 (human).
+
+    Attributes:
+        cell_lines: List of supported cell lines.
+        experiments: List of supported RNA-DNA protocols.
+        config_file_path: Path to the .ini configuration file.
+        experiment: Name of the experiment (e.g. 'RADICL', 'GRID').
+        cell_line: Name of the cell line (e.g. 'mESC', 'hESC').
+        bin_size: Genomic bin size in bp.
+        chromosomes: List of chromosome names for the organism.
+        organism: 'mouse' or 'human'.
+        genome: Reference genome identifier ('mm10' or 'hg38').
+        sample: Name of the selected sample (or None if not specified).
+        samples: List of all sample names for the experiment/cell line.
+    """
+
     cell_lines = ["mESC", "mOPC", "hESC", "K562"]
-    experiments = ["RADICL", "GRID", "Red-C", "inputRed-C", "RedChIP"]
+    experiments = ["RADICL", "GRID", "Red-C"]
     config_file_path: str | Path = field(repr=False)
     experiment: str = field(init=False)
     cell_line: str = field(init=False)
@@ -51,6 +70,7 @@ class DataConfig:
         self.init_paths(conf)
 
     def init_paths(self, conf):
+        """Builds all data paths from prefixes defined in the .ini file."""
         self.source_data_prefix = Path(conf.get("Paths", "source_data_prefix"))
         self.data_prefix = Path(conf.get("Paths", "data_prefix"))
         self.plots_prefix = Path(conf.get("Paths", "plots_prefix"))
