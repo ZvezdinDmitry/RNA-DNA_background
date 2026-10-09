@@ -8,8 +8,8 @@ class FeaturesConfig:
     """Configuration for genomic features used in model training.
 
     Populates attributes from the .ini file in `__post_init__`. Train/val/test
-    chromosome splits are hardcoded for mouse chromosomes (even indices → train,
-    odd indices → test, with chr2/8/14/18 held out as validation).
+    chromosome splits are hardcoded for mouse chromosomes (even indices for train,
+    odd indices for test, with chr2/8/14/18 held out as validation).
 
     Attributes:
         config_file_path: Path to the .ini configuration file.
@@ -19,7 +19,7 @@ class FeaturesConfig:
         perc_mask: Percentile threshold used to mask low-signal bins.
         num_features: List of names of continuous (numerical) features.
         cat_features: List of names of categorical features.
-        features_group: Feature group name (e.g. 'all', 'sequence', 'epigenome').
+        features_group: Feature group name (e.g. 'all', 'genomic').
         train_chromosomes: Chromosomes used for training.
         val_chromosomes: Chromosomes used for validation.
         test_chromosomes: Chromosomes used for testing.

@@ -255,8 +255,8 @@ def train_epoch_unet(
 ):
     """Runs one training epoch for a 1D U-Net profile-prediction model.
 
-    Interface is identical to `train_epoch`, but intended for sequence-to-sequence
-    models that take a 1D feature track as input and return a profile of predicted
+    Interface is identical to `train_epoch`, but intended for models that
+    take a 1D feature track as input and return a profile of predicted
     contacts across bins of a genomic window.
 
     Args:
