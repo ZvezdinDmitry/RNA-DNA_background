@@ -64,29 +64,32 @@ def GC_content_count(
 def interactions_bining(
     contacts: pd.DataFrame,
     params: DataConfig,
-    bin_columns: list[str] = ["dna_chr", "bin"],
+    group_by: list[str] | None = None,
 ) -> pd.DataFrame:
     """Aggregates RNA-DNA contacts into genomic bins based on DNA fragment coordinates.
+
+    The bin index is calculated as `(dna_start + dna_end) // 2 // bin_size`
+    and stored in a 'bin' column.
 
     Args:
         contacts (pd.DataFrame): DataFrame of raw RNA-DNA contacts with columns
             `dna_chr`, `dna_start`, `dna_end`.
         params (DataConfig): Configuration object holding `bin_size`.
-        bin_columns (list[str]): Columns to group by when counting contacts per bin.
-            Defaults to ['dna_chr', 'bin'].
+        group_by (list[str] | None): Optional extra columns to group by.
 
     Returns:
         pd.DataFrame: Aggregated DataFrame with one row per bin and a `count` column
             indicating the number of contacts falling into that bin.
     """
-    bin_col = bin_columns[-1]
+    group_by = group_by or []
     contacts["center"] = (contacts["dna_start"] + contacts["dna_end"]) // 2
-    contacts[bin_col] = contacts["center"] // params.bin_size
+    contacts["bin"] = contacts["center"] // params.bin_size
+    agg_columns = ["dna_chr", "bin"] + group_by
 
     contacts_binned = (
-        contacts[bin_columns]
+        contacts[agg_columns]
         .value_counts()
         .reset_index()
-        .sort_values(bin_columns)
+        .sort_values(agg_columns)
     )
     return contacts_binned
